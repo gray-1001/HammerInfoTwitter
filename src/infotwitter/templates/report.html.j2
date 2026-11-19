@@ -1,0 +1,260 @@
+﻿{% macro fb(story_id) -%}
+<div class="fb" data-story="{{ story_id }}">
+  <button type="button" data-sig="useful">👍 有用</button>
+  <button type="button" data-sig="useless">👎 没用</button>
+  <button type="button" data-sig="fake">🚫 假的</button>
+  <button type="button" data-sig="duplicate">🔁 重复</button>
+  <button type="button" data-sig="bought">🛒 已买</button>
+  <span class="fb-msg"></span>
+</div>
+{%- endmacro %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>战锤日报 {{ date }}</title>
+<style>
+  :root { --bg:#12141a; --card:#1b1e27; --line:#2b3040; --fg:#e6e8ee; --dim:#9aa1b2; --accent:#c9a227; --ok:#4caf82; --warn:#e0a030; --bad:#d9534f; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
+         font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; line-height:1.6; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:20px; }
+  .slot { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:16px 18px; margin-bottom:14px; }
+  .slot-head { margin-bottom:2px; }
+  .num { color:var(--accent); font-weight:700; font-size:15px; margin-right:8px;
+         display:inline-block; min-width:14px; }
+  .title { font-size:17px; font-weight:600; }
+  .meta { color:var(--dim); font-size:12px; margin-top:6px; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:4px; font-size:11px;
+           border:1px solid var(--line); margin-right:6px; }
+  .L0 { color:#7fd1a8; border-color:#2f6b52; }
+  .L1 { color:#8ab4f8; border-color:#33507f; }
+  .L2 { color:#c9c9c9; border-color:#4a4a4a; }
+  .L3 { color:#e0a030; border-color:#6b5320; }
+  .score { color:var(--accent); font-variant-numeric: tabular-nums; }
+  .why { color:#d8dbe4; margin:8px 0 0; font-size:14px; }
+  .summary { margin:6px 0 0; font-size:14px; }
+  .quote { border-left:3px solid var(--line); padding-left:10px; margin:10px 0 0;
+           color:var(--dim); font-size:13px; font-style:italic; }
+  .links { margin-top:10px; font-size:13px; }
+  a { color:#8ab4f8; text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--dim); font-size:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; margin-top:8px; }
+  th, td { border:1px solid var(--line); padding:4px 8px; text-align:left; }
+  th { color:var(--dim); font-weight:500; white-space:nowrap; }
+  .table-wrap { overflow-x:auto; }
+  .fb { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .fb button { background:#232734; color:var(--fg); border:1px solid var(--line);
+               border-radius:6px; padding:3px 9px; font-size:12px; cursor:pointer; }
+  .fb button:hover { border-color:var(--accent); }
+  .fb button:disabled { opacity:.45; cursor:default; }
+  .fb-msg { color:var(--dim); font-size:12px; }
+  @media (max-width: 560px) {
+    body { padding:14px; }
+    h1 { font-size:19px; }
+    .slot { padding:13px 14px; }
+    .title { font-size:16px; }
+    th, td { padding:4px 6px; }
+  }
+  .mode { display:inline-block; padding:2px 8px; border-radius:4px; font-size:12px;
+          background:#2a2410; color:var(--warn); border:1px solid #5a4a18; }
+  .footer { color:var(--dim); font-size:12px; margin-top:24px; border-top:1px solid var(--line); padding-top:12px; }
+  .empty { color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>战锤日报 · {{ date }}</h1>
+  <div class="sub">
+    模式 <span class="mode">{{ mode_label }}</span>
+    &nbsp;|&nbsp; 候选 {{ stats.fresh }} 条，合格 {{ stats.qualified }} 条，门槛 {{ threshold | int }} 分
+    &nbsp;|&nbsp; 生成于 {{ generated_at }}
+    {% if rules_mode %}<br><span style="color:var(--warn)">规则模式：无中文翻译与摘要，配置 DEEPSEEK_API_KEY 后自动启用</span>{% endif %}
+  </div>
+
+  {% for item in general %}
+  <div class="slot">
+    <div class="slot-head">
+      <span class="num">{{ loop.index }}</span>
+      <span class="title">{{ item.title_zh or item.canonical_title }}</span>
+    </div>
+    <div class="meta">
+      <span class="badge {{ item.authenticity }}">{{ item.authenticity }}</span>
+      {% if item.confidence %}<span class="badge">{{ item.confidence }}</span>{% endif %}
+      <span class="score">{{ item.shown_score }} 分</span>
+      &nbsp;·&nbsp; {{ event_labels.get(item.event_type, item.event_type) }} / {{ item.category }}
+      {% if item._slot_reason != 'qualified' %}&nbsp;·&nbsp; {{ slot_reason_labels.get(item._slot_reason, item._slot_reason) }}{% endif %}
+    </div>
+    {% if item.title_zh and item.title_zh != item.canonical_title %}
+    <div class="meta">原文标题：{{ item.canonical_title }}</div>
+    {% endif %}
+    {% if item.why_matters %}<p class="why">💡 {{ item.why_matters }}</p>{% endif %}
+    {% if item.summary %}<p class="summary">{{ item.summary }}</p>{% endif %}
+    {% if item.quote_en %}<div class="quote">“{{ item.quote_en[:240] }}”{% if item.quote_zh %}<br><span style="color:var(--dim)">{{ item.quote_zh[:240] }}</span>{% endif %}</div>{% endif %}
+    <div class="links">
+      {% set u = item.primary_url | safe_url %}{% if u %}<a href="{{ u }}" target="_blank" rel="noopener">原文链接 →</a>{% endif %}
+      &nbsp;·&nbsp; {{ item.source_labels | join(' · ') }}
+    </div>
+    {{ fb(item.id) }}
+    {% if item.score_breakdown %}
+    <details>
+      <summary>评分明细</summary>
+      <table>
+        <tr><th>维度</th><th>分值(0-5)</th><th>权重</th></tr>
+        {% for k, label in dim_labels.items() %}
+        <tr><td>{{ label }}</td><td>{{ item.breakdown.get(k, '—') }}</td><td>{{ weights.get(k, '—') }}</td></tr>
+        {% endfor %}
+      </table>
+      <div class="meta">
+        加权原始分 {{ item.breakdown.get('raw', '—') }} × 品类系数
+        {{ item.breakdown.get('category_weight', '—') }} = <span class="score">{{ item.breakdown.get('total', '—') }}</span>
+        {% if item.decay_factor is defined and item.decay_factor < 1 %}
+        <br>× 时效衰减 {{ item.decay_factor }} = <span class="score">{{ item.shown_score }}</span>
+        <span style="color:var(--dim)">（{{ slot_reason_labels.get(item._slot_reason, '') }}按天数衰减）</span>
+        {% endif %}
+        <br>{{ item.authenticity_note }}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if product_rows %}
+  <div class="slot">
+    <div class="slot-head"><span class="num">5</span><span class="title">模型价格速览</span></div>
+    <div class="meta">
+      海外价 = 英国零售价观测值；国内官店 = GW 中国建议零售价；预期价 = 模型推算（仅无官店观测时给出）；国内最低 = ≥2 个渠道时的最低观测
+      {% set asof = product_rows | map(attribute='data_date') | select | list %}
+      {% if asof %}&nbsp;·&nbsp; 数据日 {{ asof | max }}{% endif %}
+    </div>
+    <div class="table-wrap"><table>
+      <tr><th>商品</th><th>海外价</th><th>国内官店</th><th>预期价</th><th>国内最低</th><th>涨跌</th><th>置信</th></tr>
+      {% for p in product_rows %}
+      <tr>
+        <td>{% set pn = p.name_zh or p.name %}{% set pu = p.url | safe_url %}{% if pu %}<a href="{{ pu }}" target="_blank" rel="noopener">{{ pn }}</a>{% else %}{{ pn }}{% endif %}</td>
+        <td>{{ p.official or '—' }}</td>
+        <td>{{ p.cn_official or '—' }}</td>
+        <td>{{ p.expected or '—' }}</td>
+        <td>{{ p.observed or '—' }}</td>
+        <td>{{ p.change or '—' }}</td>
+        <td>{{ p.confidence or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    {% if price_coverage %}
+    <div class="meta" style="margin-top:6px">
+      价格覆盖：{{ price_coverage.products }} 个商品中，{{ price_coverage.with_street }} 个有国内渠道价、
+      {{ price_coverage.with_overseas }} 个有海外价；历史观测 {{ price_coverage.dates }} 天
+      （{{ price_coverage.first_date or '—' }} ~ {{ price_coverage.last_date or '—' }}）
+      {% if price_coverage.dates < 2 %}<br>⚠ 只有一天的观测，所以「涨跌」暂时无法计算{% endif %}
+      {% if price_coverage.with_street < 10 %}<br>⚠ 渠道价样本很少，下表多数商品只能给出官方价{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% elif product %}
+  <div class="slot">
+    <div class="slot-head"><span class="num">5</span><span class="title">模型价格速览</span></div>
+    <div class="meta">新品与预购动态（价格数据待接入）</div>
+    <div class="table-wrap"><table>
+      <tr><th>商品</th><th>类型</th><th>分数</th><th>来源</th></tr>
+      {% for p in product %}
+      <tr>
+        <td>{% set pu2 = p.primary_url | safe_url %}{% if pu2 %}<a href="{{ pu2 }}" target="_blank" rel="noopener">{{ p.title_zh or p.canonical_title }}</a>{% else %}{{ p.title_zh or p.canonical_title }}{% endif %}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.importance_total }}</td>
+        <td>{{ p.source_labels | join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </table></div>
+  </div>
+  {% else %}
+  <div class="slot">
+    <div class="slot-head"><span class="num">5</span><span class="title">模型价格速览</span></div>
+    <div class="empty">{% if product_refs %}模型价格速览见第 {{ product_refs | join("、") }} 条。{% else %}本周模型市场无重大变动。{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% if cn %}
+  <div class="slot">
+    <div class="slot-head">
+      <span class="num">6</span>
+      <span class="title">{{ cn.title_zh or cn.canonical_title }}</span>
+    </div>
+    <div class="meta">
+      <span class="badge {{ cn.authenticity }}">{{ cn.authenticity }}</span>
+      <span class="score">中文社区 {{ cn.cn_score if cn.cn_score is defined else cn.importance_total }} 分</span>
+      &nbsp;·&nbsp; 通识分 {{ cn.importance_total }}
+      {% if cn.age_days and cn.age_days >= 1 %}&nbsp;·&nbsp; {{ cn.age_days | round | int }} 天前{% endif %}
+    </div>
+    {% if cn.cn_breakdown %}
+    <details>
+      <summary>中文社区卡明细（§7.3）</summary>
+      <table>
+        <tr><th>维度</th><th>分值(0-5)</th><th>权重</th></tr>
+        {% for k, label in cn_dim_labels.items() %}
+        <tr><td>{{ label }}</td><td>{{ cn.cn_breakdown[k] if cn.cn_breakdown is mapping else '' }}</td><td>{{ cn_weights.get(k, '—') }}</td></tr>
+        {% endfor %}
+      </table>
+    </details>
+    {% endif %}
+    {% if cn.why_matters %}<p class="why">💡 {{ cn.why_matters }}</p>{% endif %}
+    {% if cn.summary %}<p class="summary">{{ cn.summary }}</p>{% endif %}
+    <div class="links">{% set cu = cn.primary_url | safe_url %}{% if cu %}<a href="{{ cu }}" target="_blank" rel="noopener">原文链接 →</a>{% endif %}</div>
+    {{ fb(cn.id) }}
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    {% if run_stats.skipped_collect %}
+    本次运行：跳过采集（复用库内已有数据）/ 聚成 {{ run_stats.stories }} 个事件 ·
+    {% else %}
+    本次运行：采集 {{ run_stats.collected }} 条 / 新增 {{ run_stats.inserted }} 条 /
+    聚成 {{ run_stats.stories }} 个事件 ·
+    {% endif %}
+    LLM 调用 {{ llm_stats.calls }} 次，tokens {{ llm_stats.tokens }}
+    {% if failed_sources %}
+    <br>异常源 {{ failed_sources | length }} 个：{{ failed_sources | join(', ') }}
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  var TOKEN = {{ feedback_token | tojson }};
+  var DAY = {{ date | tojson }};
+  document.querySelectorAll('.fb').forEach(function (box) {
+    var msg = box.querySelector('.fb-msg');
+    box.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var payload = { story_id: box.dataset.story, signal: btn.dataset.sig, token: TOKEN };
+        box.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+        msg.textContent = '提交中…';
+        fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d.ok) {
+            msg.textContent = d.deduped ? '今天已记过一次' : '已记录，谢谢';
+          } else {
+            msg.textContent = d.error || '提交失败';
+            box.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+          }
+        }).catch(function () {
+          msg.textContent = '网络错误';
+          box.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        });
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

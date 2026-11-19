@@ -1,0 +1,26 @@
+# 战锤信息日报 · 运行依赖（Python 3.11+）
+# 安装： .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# 浏览器： .\.venv\Scripts\python.exe -m playwright install chromium
+
+# HTTP 与解析
+httpx==0.28.1
+feedparser==6.0.14
+
+# 模板渲染
+Jinja2==3.1.6
+
+# 配置
+PyYAML==6.0.3
+
+# 正文抽取（content.py 直接 import，缺了会直接 ImportError）
+trafilatura==2.3.1
+lxml==6.1.3
+
+# 浏览器渲染（官网 / Element Games / B 站 cookie）
+playwright==1.65.2
+
+# GW 调价表 Excel 导入（pricing.import_gw_excel）
+openpyxl==3.1.5
+
+# HTML 清洗（部分适配器使用）
+beautifulsoup4==4.15.0

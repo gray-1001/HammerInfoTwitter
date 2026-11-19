@@ -1,0 +1,665 @@
+﻿# 源注册表
+# 依据 2026-11-17 实测可达性编写（本机需经系统代理访问境外站）
+#
+# type:
+#   rss        -> 直接订阅 RSS/Atom
+#   googlenews -> Google News RSS 定向查询（用于绕开 Cloudflare 的权威源聚合）
+#   browser    -> Playwright 渲染后抽取链接（用于官网这类 Cloudflare 站点）
+#
+# tier: L0 官方 / L1 权威媒体 / L2 可信社区 / L3 传闻
+# category: official | media | community | rumor | marketplace | cn_community
+#
+# 可选字段：
+#   keywords      综合站只保留命中关键词的条目
+#   min_gap       同域名请求最小间隔（秒）
+#   collect_hours 覆盖全局采集窗口
+#   headers       单源自定义请求头
+#
+# 注意：每个源的 weight 字段目前**没有被任何代码读取**（评分只用 tier）。
+# 保留它是为了将来接"源权重"时不用改配置；不要以为调大它就能让某个源排前面（C-11）。
+
+sources:
+  # ============ L0 官方 ============
+  - id: whc_news
+    name: Warhammer Community
+    type: browser
+    url: https://www.warhammer-community.com/en-gb/
+    fallback_urls:
+      - https://www.warhammer-community.com/en-gb/all-news-and-features/news/
+    tier: L0
+    lang: en
+    category: official
+    weight: 1.3
+    deep_fetch: true   # 用浏览器抓文章全文
+    link_pattern: "/en-gb/articles/"
+    exclude_slugs:
+      - what-is-a-warhammer-event
+      - the-warhammer-global-rankings
+      - world-championships-of-warhammer
+      - golden-demon-warhammers-ultimate-painting-competition
+      - the-warhammer-40000-grand-narrative
+      - official-warhammer-events
+      - organiser-resources-for-warhammer-events
+      - the-roll-of-honour
+    note: Cloudflare 站点，必须走 Playwright；首页前 8 条是导航常青页需排除
+
+  - id: gnews_whc
+    name: GoogleNews·Warhammer Community
+    type: googlenews
+    query: site:warhammer-community.com
+    tier: L0
+    lang: en
+    category: official
+    weight: 1.2
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+    note: 官网内容兜底通道
+
+  - id: gnews_wh_store
+    name: GoogleNews·Warhammer Store
+    type: googlenews
+    query: site:warhammer.com
+    tier: L0
+    lang: en
+    category: official
+    weight: 1.2
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+    note: 新发售/预售商品页，用于槽 5 与 SKU 发现
+
+  # ============ L1 权威媒体 ============
+  - id: goonhammer
+    name: Goonhammer
+    type: rss
+    url: https://www.goonhammer.com/feed/
+    tier: L1
+    lang: en
+    category: media
+    weight: 1.15
+    deep_fetch: true   # 用浏览器抓文章全文
+    note: 实测稳定
+
+  - id: spikeybits
+    name: Spikey Bits
+    type: rss
+    url: https://spikeybits.com/feed
+    tier: L1
+    lang: en
+    category: media
+    weight: 1.0
+    deep_fetch: true   # 用浏览器抓文章全文
+
+  - id: wargamer
+    name: Wargamer
+    type: rss
+    url: https://www.wargamer.com/feed
+    tier: L1
+    lang: en
+    category: media
+    weight: 1.0
+    deep_fetch: true   # 用浏览器抓文章全文
+    keywords: [warhammer, 40k, "40,000", sigmar, heresy, "the old world", games workshop, kill team, necromunda]
+
+  - id: gnews_40k
+    name: GoogleNews·Warhammer 40K
+    type: googlenews
+    query: warhammer 40k
+    tier: L2
+    lang: en
+    category: media
+    weight: 1.0
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_aos
+    name: GoogleNews·Age of Sigmar
+    type: googlenews
+    query: "age of sigmar"
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.95
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_tow
+    name: GoogleNews·The Old World
+    type: googlenews
+    query: "warhammer the old world"
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.95
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_30k
+    name: GoogleNews·Horus Heresy
+    type: googlenews
+    query: "horus heresy"
+    tier: L2
+    lang: en
+    category: media
+    weight: 1.0
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_novel
+    name: GoogleNews·Black Library
+    type: googlenews
+    query: "warhammer novel"
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.9
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_game
+    name: GoogleNews·Warhammer Game
+    type: googlenews
+    query: "warhammer video game"
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.9
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  # ============ YouTube（RSS，无需 API key）============
+  - id: yt_auspex
+    name: YouTube·Auspex Tactics
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC6Gco9PWxmJmJ5CqfbChuiQ
+    tier: L2
+    lang: en
+    category: media
+    weight: 1.1
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 规则与爆料解读，社区命中率高
+
+  - id: yt_arbitor
+    name: YouTube·Arbitor Ian
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UCHOFy9rDa1Zsvb39hYBBVpA
+    tier: L2
+    lang: en
+    category: media
+    weight: 1.0
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 设定与新闻评论
+
+  - id: yt_tabletop
+    name: YouTube·Tabletop Tactics
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC_KbSd9fby8UeLU7M6eXeRQ
+    tier: L2
+    lang: en
+    category: community
+    weight: 0.85
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 对战视频，常带新品实拍
+
+  - id: yt_playon
+    name: YouTube·Play On Tabletop
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UCJ4-WFTrDNWvcM7dEC6E2mw
+    tier: L2
+    lang: en
+    category: community
+    weight: 0.8
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 对战视频
+
+  # ============ L2 社区 ============
+
+  - id: reddit_40k
+    name: Reddit r/Warhammer40k
+    type: reddit
+    subreddit: Warhammer40k
+    tier: L2
+    lang: en
+    category: community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 40
+    body_lookup: 4          # 只给文本帖补自述正文，每源最多 4 条
+    min_gap: 10.0
+    filter:
+      min_title_len: 24
+      reject_questions: true
+      reject_suffix: ["?"]
+      reject_regex:
+        - "^i\\b"
+        - "\\bam new\\b"
+        - "\\bmy (first|new|own)\\b"
+        - "\\bwip\\b"
+        - "\\bc&c\\b"
+        - "\\blooking for\\b"
+        - "\\bshould i\\b"
+    note: RSS/JSON 端点已被 Reddit 封禁；改用浏览器渲染 r/Warhammer40k/new/，时间戳读取 time 元素
+  - id: reddit_warhammer
+    name: Reddit r/Warhammer
+    type: reddit
+    subreddit: Warhammer
+    tier: L2
+    lang: en
+    category: community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 40
+    body_lookup: 4          # 只给文本帖补自述正文，每源最多 4 条
+    min_gap: 10.0
+    filter:
+      min_title_len: 24
+      reject_questions: true
+      reject_suffix: ["?"]
+      reject_regex:
+        - "^i\\b"
+        - "\\bam new\\b"
+        - "\\bmy (first|new|own)\\b"
+        - "\\bwip\\b"
+        - "\\bc&c\\b"
+        - "\\blooking for\\b"
+        - "\\bshould i\\b"
+    note: RSS/JSON 端点已被 Reddit 封禁；改用浏览器渲染 r/Warhammer/new/，时间戳读取 time 元素
+  - id: reddit_aos
+    name: Reddit r/ageofsigmar
+    type: reddit
+    subreddit: ageofsigmar
+    tier: L2
+    lang: en
+    category: community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 40
+    body_lookup: 4          # 只给文本帖补自述正文，每源最多 4 条
+    min_gap: 10.0
+    filter:
+      min_title_len: 24
+      reject_questions: true
+      reject_suffix: ["?"]
+      reject_regex:
+        - "^i\\b"
+        - "\\bam new\\b"
+        - "\\bmy (first|new|own)\\b"
+        - "\\bwip\\b"
+        - "\\bc&c\\b"
+        - "\\blooking for\\b"
+        - "\\bshould i\\b"
+    note: RSS/JSON 端点已被 Reddit 封禁；改用浏览器渲染 r/ageofsigmar/new/，时间戳读取 time 元素
+  - id: reddit_tow
+    name: Reddit r/WarhammerFantasy
+    type: reddit
+    subreddit: WarhammerFantasy
+    tier: L2
+    lang: en
+    category: community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 40
+    body_lookup: 4          # 只给文本帖补自述正文，每源最多 4 条
+    min_gap: 10.0
+    filter:
+      min_title_len: 24
+      reject_questions: true
+      reject_suffix: ["?"]
+      reject_regex:
+        - "^i\\b"
+        - "\\bam new\\b"
+        - "\\bmy (first|new|own)\\b"
+        - "\\bwip\\b"
+        - "\\bc&c\\b"
+        - "\\blooking for\\b"
+        - "\\bshould i\\b"
+    note: RSS/JSON 端点已被 Reddit 封禁；改用浏览器渲染 r/WarhammerFantasy/new/，时间戳读取 time 元素
+  - id: reddit_competitive
+    name: Reddit r/WarhammerCompetitive
+    type: reddit
+    subreddit: WarhammerCompetitive
+    tier: L2
+    lang: en
+    category: community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 40
+    body_lookup: 4          # 只给文本帖补自述正文，每源最多 4 条
+    min_gap: 10.0
+    filter:
+      min_title_len: 24
+      reject_questions: true
+      reject_suffix: ["?"]
+      reject_regex:
+        - "^i\\b"
+        - "\\bam new\\b"
+        - "\\bmy (first|new|own)\\b"
+        - "\\bwip\\b"
+        - "\\bc&c\\b"
+        - "\\blooking for\\b"
+        - "\\bshould i\\b"
+    note: RSS/JSON 端点已被 Reddit 封禁；改用浏览器渲染 r/WarhammerCompetitive/new/，时间戳读取 time 元素
+  - id: bilibili_wh
+    desc_lookup: 5     # 只补前 5 条的完整简介，控制请求量
+    name: B站·战锤
+    type: bilibili
+    keyword: 战锤
+    url: https://search.bilibili.com/all?keyword=%E6%88%98%E9%94%A4
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 20
+    top_n: 8                # 按播放量取前 8 条：B站简介本身很短，只能靠降噪提信噪比
+    note: 搜索接口需 cookie 指纹，适配器内部用浏览器自动获取
+
+  - id: bilibili_model
+    desc_lookup: 5     # 只补前 5 条的完整简介，控制请求量
+    name: B站·战锤模型
+    type: bilibili
+    keyword: 战锤 模型
+    url: https://search.bilibili.com/all?keyword=%E6%88%98%E9%94%A4%E6%A8%A1%E5%9E%8B
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 0.95
+    collect_hours: 168
+    max_items: 15
+    top_n: 8                # 按播放量取前 8 条：B站简介本身很短，只能靠降噪提信噪比
+    note: 模型涂装与新品内容
+
+  - id: bilibili_40k
+    desc_lookup: 5     # 只补前 5 条的完整简介，控制请求量
+    name: B站·战锤40K
+    type: bilibili
+    keyword: 战锤40K
+    url: https://search.bilibili.com/all?keyword=%E6%88%98%E9%94%A440K
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 20
+    top_n: 8                # 按播放量取前 8 条：B站简介本身很短，只能靠降噪提信噪比
+
+  - id: bilibili_paint
+    desc_lookup: 5     # 只补前 5 条的完整简介，控制请求量
+    name: B站·战锤涂装
+    type: bilibili
+    keyword: 战锤 涂装
+    url: https://search.bilibili.com/all?keyword=%E6%88%98%E9%94%A4%E6%B6%82%E8%A3%85
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 0.9
+    collect_hours: 168
+    max_items: 15
+    top_n: 8                # 按播放量取前 8 条：B站简介本身很短，只能靠降噪提信噪比
+
+  - id: gcores
+    name: 机核 GCORES
+    type: rss
+    url: https://www.gcores.com/rss
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    deep_fetch: true   # 用浏览器抓文章全文
+    collect_hours: 168
+    keywords: [战锤, 战锤40K, 荷鲁斯, 西格玛, 星际战士, 混沌军团, warhammer]
+    note: 综合站，需关键词过滤
+
+  - id: yystv
+    name: 游研社
+    type: rss
+    url: https://www.yystv.cn/rss/feed
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    deep_fetch: true   # 用浏览器抓文章全文
+    collect_hours: 168
+    keywords: [战锤, 战锤40K, 荷鲁斯, 西格玛, 星际战士, 混沌军团, warhammer]
+    note: 综合站，需关键词过滤
+
+  - id: gnews_cn_40k
+    name: GoogleNews·战锤40K
+    type: googlenews
+    query: 战锤40K
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    hl: zh-CN
+    gl: CN
+    ceid: "CN:zh-Hans"
+
+  - id: gnews_cn_model
+    name: GoogleNews·战锤模型
+    type: googlenews
+    query: 战锤 模型
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    hl: zh-CN
+    gl: CN
+    ceid: "CN:zh-Hans"
+
+  # ---------- YouTube：设定/评测类 ----------
+  - id: yt_luetin
+    name: YouTube·Luetin09
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC8RfCCzWsMgNspTI-GTFenQ
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.8
+    collect_hours: 96   # 频道更新频率低，放宽采集窗口
+    note: 设定长视频，偶尔覆盖新版本背景
+
+  - id: yt_baldermort
+    name: YouTube·Baldermort
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UCdpGd0jls7VQh6LvcZT_p1A
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.75
+    collect_hours: 96   # 频道更新频率低，放宽采集窗口
+    note: 设定叙事
+
+  - id: yt_oculus
+    name: YouTube·Oculus Imperia
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC8AaO8zkIoxbUp1_p0rl13g
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.7
+    collect_hours: 96   # 频道更新频率低，放宽采集窗口
+    note: 设定解读
+
+  - id: yt_40ktheories
+    name: YouTube·40K Theories
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC1EXMVGTvx_9e9JoMe1m5iw
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.7
+    collect_hours: 96   # 频道更新频率低，放宽采集窗口
+    note: 设定与猜测
+
+  - id: yt_miniwargaming
+    name: YouTube·MiniWarGaming
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UC2mQ7x6K74NBfmxBoMwZCnw
+    tier: L2
+    lang: en
+    category: community
+    weight: 0.85
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 对战视频，常含新品实拍
+
+  - id: yt_tabletoptime
+    name: YouTube·Tabletop Time
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UCnxV_DmvRCLthuRkuoCp1Nw
+    tier: L2
+    lang: en
+    category: community
+    weight: 0.8
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 涂装与改造
+
+  - id: yt_squad
+    name: YouTube·Squad Tactics
+    type: rss
+    url: https://www.youtube.com/feeds/videos.xml?channel_id=UCNV4HXOc9CzLHV5pQ0dGVig
+    tier: L2
+    lang: en
+    category: community
+    weight: 0.7
+    collect_hours: 168   # 频道更新频率低，放宽采集窗口
+    note: 对战战术
+
+  # ---------- Google News：更多搜索关键词 ----------
+  - id: gnews_killteam
+    name: GoogleNews·Kill Team
+    type: googlenews
+    query: "kill team warhammer"
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.85
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_necromunda
+    name: GoogleNews·Necromunda
+    type: googlenews
+    query: necromunda warhammer
+    tier: L2
+    lang: en
+    category: media
+    weight: 0.8
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_gw_results
+    name: GoogleNews·Games Workshop 财报
+    type: googlenews
+    query: '"games workshop" results shares' 
+    tier: L1
+    lang: en
+    category: media
+    weight: 1.0
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  - id: gnews_11th
+    name: GoogleNews·Warhammer 11th
+    type: googlenews
+    query: '"warhammer 40k" "11th edition"' 
+    tier: L2
+    lang: en
+    category: media
+    weight: 1.0
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+
+  # ============ L3 传闻 ============
+  - id: gnews_rumor
+    name: GoogleNews·Warhammer Rumor
+    type: googlenews
+    query: warhammer rumor leak
+    tier: L3
+    lang: en
+    category: rumor
+    weight: 0.7
+    collect_hours: 96
+    hl: en-US
+    gl: US
+    ceid: "US:en"
+    note: 仅在低信息量模式下允许进入推送
+
+  # ============ 百度贴吧（aiotieba，匿名可读）============
+  # ============ 百度贴吧核心吧（每次必抓，抓到多少算多少）============
+  - id: tieba_40k
+    name: 贴吧·战锤40K
+    type: tieba
+    fname: 战锤40k
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 20
+    note: 40k 吧帖子量大但以涂装/问答为主；不设关键词门槛，保证每轮都真实抓取
+
+  - id: tieba_wh
+    name: 贴吧·战锤
+    type: tieba
+    fname: 战锤
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    max_items: 20
+    note: 战锤吧活跃度低，一周可能只有一两帖，抓不到属正常
+
+  - id: tieba_wargame
+    name: 贴吧·战棋
+    type: tieba
+    fname: 战棋
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 0.8
+    collect_hours: 168
+    max_items: 20
+    note: 战棋综合吧，与战锤相关度低；保留以覆盖潜在讨论
+
+  # ============ NGA（需登录：run.py login nga）============
+  - id: nga_40k
+    name: NGA·战锤40K
+    type: nga
+    fid: "332"
+    board: 战锤40K
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 1.0
+    collect_hours: 168
+    pages: 2
+    body_lookup: 5      # 逐帖取首楼正文的条数上限
+    note: 战锤40K 专版；NGA 需登录 cookie，未登录会跳过并在日志提示
+
+  - id: tieba_anyuan
+    name: 贴吧·暗源
+    type: tieba
+    fname: 暗源
+    tier: L2
+    lang: zh
+    category: cn_community
+    weight: 0.9
+    collect_hours: 168
+    max_items: 30
+    keywords: ["上新", "预售", "发售", "新品", "到货", "官宣", "价格", "模型"]
+    note: 暗源是国产战锤模型品牌，上新/价格情报价值高

@@ -1,0 +1,155 @@
+﻿# 战锤信息日报 · 运行配置
+# 修改后无需改代码，重启任务即可生效
+# 每一项都真的被代码读取；改完可以用 `run.py doctor` 自检
+
+app:
+  timezone: Asia/Shanghai   # 仅作记录：存储层固定按 UTC+8 处理，改成别的时区会告警
+  db_path: data/infotwitter.db
+  log_dir: logs
+  report_dir: reports
+  report_port: 8080
+  # 监听地址：0.0.0.0 = 局域网可访问（推送里的链接就是局域网 IP，手机能打开）
+  # 只给本机看就写 127.0.0.1
+  report_host: "0.0.0.0"
+  # 推送里对外暴露的地址；auto = 自动取局域网 IP
+  report_base_url: auto
+  # 计划任务名，doctor 用它检查任务状态
+  task_name: InfoTwitter-Daily
+
+network:
+  # auto = 自动探测系统代理（环境变量 → Windows 注册表）
+  # none = 直连；也可显式写 http://127.0.0.1:7897
+  proxy: auto
+  timeout: 30
+  connect_timeout: 8       # 代理偶发握手失败，压低以免整体卡死
+  retries: 4               # 单次请求最多尝试几次（含首次）
+  breaker_threshold: 3     # 同域名「连续几个请求」失败后熔断（按请求计数，不按重试计数）
+  breaker_cooldown: 90     # 熔断冷静期（秒），到点放行一次探测，成功即复活
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+windows:
+  collect_hours: 168     # 采集窗口：整整一周，保证内容库够大
+  push_hours: 48         # 优先推送窗口：48h 内的事件优先占槽；超出则降到二级候选
+  # 历史补位回溯天数。必须**大于** collect_hours/24，否则它和二级窗口完全重合，
+  # 这一级降级阶梯等于不存在（N-06）。14 天 = 一周聚类窗口 + 一周历史尾巴。
+  backlog_days: 14
+  # 槽 6 的时间窗。中文源更新慢（实测约一周一条），所以取 7 天；
+  # 放宽窗口不等于放宽标准——cn_score 的时效维度仍会扣分。
+  cn_slot_days: 7
+
+analysis:
+  title_only_per_source: 12   # 每个源最多分析多少条"只有标题"的文档；超出不成事件也不送 LLM
+  min_body: 400               # 正文达到这个长度就不受上面的限额约束
+
+content:
+  enabled: true          # 用真实浏览器抓文章全文（大幅提升摘要质量）
+  max_docs: 0            # 0 = 不设上限；已抓过的 URL 走缓存不重复请求
+  max_items: 150         # 单次运行最多抓多少篇正文（真正的上限，0 = 不限）；必须 ≥ resolve_limit，否则还原坐不满预算
+  # 抓取策略：先 HTTP 直连（约 1 秒/篇），失败或正文过短的再交给浏览器
+  # （约 12 秒/篇）。实测 HTTP 能拿下多数站点的正文，浏览器只做兜底。
+  http_first: true
+  http_timeout: 15       # 单篇 HTTP 超时（秒）
+  http_retries: 2        # HTTP 重试次数
+  browser_fallback: true # HTTP 拿不到时是否回落 Playwright
+  max_chars: 12000       # 单篇正文入库上限：LLM 只用 8000 字，多存无益且污染缓存
+  http_dead_threshold: 2 # 同一域名 HTTP 连续失败几次后，本轮直接走浏览器
+  resolve_google_news: true  # Google News 条目用浏览器还原成真实文章页再抓正文
+  resolve_limit: 90          # 单次运行最多还原多少条（每条约 4–5 秒，90 条约 6–8 分钟）
+  # 补抓：给「已分析但正文太短」的旧文档再抓一次（不补的话它们永远是 70 字）
+  backfill_enabled: true
+  backfill_limit: 90         # 每轮最多补抓多少条（每条约 3.7 秒，90 条约 5.5 分钟）
+  backfill_days: 7           # 只补最近多少天的文档
+  backfill_min_body: 400     # 正文短于此才值得补
+  backfill_reanalyze: true   # 补到正文后重新排队分析（会产生少量 LLM 成本）
+  wait_ms: 2500          # 页面渲染等待，Cloudflare 站点会自动重试一次
+  deadline_sec: 1800     # 正文抓取总时长预算（秒）；到点停手，避免任务被 1 小时硬杀
+
+retention:
+  raw_docs_days: 14      # 原始文档保留天数（stories 结论长期保留）
+  content_cache_days: 14 # 正文缓存保留天数（过期重抓，避免旧的低质量抽取被永久复用）
+
+llm:
+  # deepseek | ollama | none
+  # none = 纯规则模式，零成本，无翻译与真实性校验
+  provider: deepseek
+  base_url: https://api.deepseek.com
+  model: deepseek-chat
+  api_key_env: DEEPSEEK_API_KEY
+  daily_token_budget: 800000
+  concurrency: 4
+  retries: 3              # 单篇抽取失败重试次数（5xx / 超时才重试）
+  temperature: 0.2
+  max_input_chars: 8000   # 正文抓取后文章更长，放宽截断
+
+scoring:
+  rubric_version: importance@v2   # v2：buzz 按来源类型加权，转载型 L2 只算 0.6（N-2）
+  weights:
+    authority: 20
+    magnitude: 25
+    buzz: 20
+    actionability: 15
+    freshness: 10
+    interest: 10
+  category_weights:
+    "40k": 1.00
+    "30k": 1.00
+    "aos": 0.85
+    "tow": 0.85
+    "other": 0.60
+  # 槽 6 用的独立中文社区卡（设计 §7.3），与上面的通识卡互不影响
+  cn_weights:
+    affinity: 30          # 中文社区影响面
+    obtainability: 25     # 国内可获得性
+    source_trust: 20      # 中文源可信子表
+    scarcity: 15          # 英文源是否完全没有
+    freshness: 10         # 时效
+  cn_evergreen_penalty: 0.65   # 涂装/教程/战报类内容的折扣系数
+
+thresholds:
+  # 用真实 DeepSeek 打分实测校准（importance@v1）：
+  # 54 个事件的分布是 60/58/55/52/49/48…，满分 100 实际不可达，
+  # 因为 buzz 维度多数事件只有单一来源、magnitude 上限约 4。
+  # 55 分线实测约 13 条达标，选择性与质量平衡较好。
+  qualified_score: 55        # 进入槽 1-4 的最低分
+  # 槽 6 走独立的中文社区卡（不再是通识卡分数），设计 §7.3 给定 ≥60。
+  # 实测中文社区候选在 47–85 之间，60 分线约留下 3 条，避免涂装视频占槽。
+  cn_slot_min: 60
+  backlog_min_score: 45      # 进入 backlog 的最低分
+  aged_min_score: 50         # 48h 之外、一周之内的事件补位门槛（按原始分判定）
+  # 二级补位还有一条展示分下限：原始分够、但衰减之后已经很低的事件不该推到读者面前。
+  # 取 40 是为了让设计文档里 44.x 分那批「本周稍早」仍然成立，同时挡住 30 分级内容。
+  aged_min_shown: 40
+  rumor_promote_below: 50    # 传闻补位的最低自身分数
+
+pricing:
+  # 人工快照 CSV：`run.py price --import-csv data/price_snapshots.csv`
+  manual_csv: data/price_snapshots.csv
+  # 汇率为粗略值，请按需更新；真实换算应接汇率 API（P1）
+  rates:
+    GBP_CNY: 9.20
+    USD_CNY: 7.20
+    EUR_CNY: 7.80
+  # 下面四项只用于「预期价模型」：仅在没有国内官店观测时兜底给出区间，
+  # 有真实观测时一律展示观测值（宁可不给，也不给假精度）
+  freight_rate: 0.08       # 国际运费率
+  duty_rate: 0.09          # 关税率
+  channel_markup: 1.12     # 国内渠道加价率
+  spread: 0.10             # 预期价上下浮动
+  movement_days: 7         # 涨跌统计窗口（§9.2 差分）
+  # 自动采集：日更任务里顺带报价的开关与节奏
+  auto_collect: true
+  auto_collect_every_days: 7   # 距上次成功采集超过这么多天才自动跑一次
+
+push:
+  # pushplus | wecom_bot
+  # pushplus 直接推到个人微信，内容上限宽松（2 万字），推荐
+  channel: pushplus
+  pushplus_token: ""        # PushPlus 令牌，建议写在 .env 的 PUSHPLUS_TOKEN
+  pushplus_template: html    # html 有排版；txt 为纯文本（排版层会自动跟着切换）
+  wecom_webhook: ""         # 备选：企业微信群机器人 webhook
+  dry_run: false
+
+slots:
+  general: 4
+  product: 1
+  cn_community: 1
