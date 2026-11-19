@@ -1,4 +1,4 @@
-# 战锤信息日报（InfoTwitter）
+﻿# 战锤信息日报（InfoTwitter）
 
 每天 12:00 自动采集过去 48 小时的战锤领域情报，经真实性校验与重要性排序后，
 推送 4 条通识新闻 + 1 条模型价格快讯（+ 可选的第 6 条中文社区情报）到个人微信。
@@ -28,8 +28,7 @@ plus crash recovery, deduplication across days, and weekly new-product ingestion
 - **387 tests**, including a golden-corpus regression snapshot (same input → same clusters/scores)
 - **Operational by design** — launch-time state reconciliation, alert log, `doctor` self-check, weekly and daily scheduled tasks
 
-> 中文说明见下方；需求与设计在 [`docs/00-需求与设计.md`](docs/00-需求与设计.md)，
-> 最近一次整改报告见 [`docs/24-P0P1整改与首推准备-2026-11-19.md`](docs/24-P0P1整改与首推准备-2026-11-19.md)。
+> 中文说明见下方。需求与设计、历次核查与整改报告均在本地留存，不随仓库发布。
 
 ---
 
@@ -123,7 +122,7 @@ src/infotwitter/
   cli.py             命令行入口
   doctor.py          环境自检（配置/代理/密钥/日报页/推送状态/定时任务）
 scripts/             长期运维脚本：翻译、目录抓取、补货号、匹配、周更编排、GitHub 推送
-docs/                需求与设计，以及最近一次整改报告
+docs/                需求与设计、核查与整改报告（本地留存，不入库）
 data/                SQLite 数据库与登录态（不入库）
 reports/             每日 HTML 日报（`_dryrun/` 里是 dry-run 产物）
 logs/                运行日志 + alert.log（推送失败告警）
