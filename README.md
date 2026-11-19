@@ -1,12 +1,38 @@
-# 战锤信息日报（InfoTwitter）
+﻿# 战锤信息日报（InfoTwitter）
 
 每天 12:00 自动采集过去 48 小时的战锤领域情报，经真实性校验与重要性排序后，
 推送 4 条通识新闻 + 1 条模型价格快讯（+ 可选的第 6 条中文社区情报）到个人微信。
 
-设计与需求见 [`docs/00-需求与设计.md`](docs/00-需求与设计.md)；
-最近一次核查与整改见 [`docs/01-核查报告-2026-11-17.md`](docs/01-核查报告-2026-11-17.md)。
+---
+
+## What is this? (English)
+
+**InfoTwitter** is a self-hosted daily digest for Warhammer news — Warhammer 40,000,
+The Horus Heresy, Age of Sigmar and The Old World. It collects from **46 sources**
+(official site, Google News, Reddit, Bilibili, Tieba, NGA, YouTube), extracts
+structured facts with an LLM, scores every story on a six-dimension rubric, and
+pushes a ranked digest to WeChat every day at 12:00 — together with a price board
+that compares overseas RRP against Chinese official/trade prices and second-hand listings.
+
+Unlike the RSS scrapers and Discord bots that dominate this space (all <5 stars),
+this is an end-to-end unattended pipeline: collection → body fetch → LLM extraction →
+claim verification → clustering → scoring → slot allocation → render → push → ledger,
+plus crash recovery, deduplication across days, and weekly new-product ingestion.
+
+**Highlights**
+
+- **46 sources across 7 adapter types**, English + Chinese (Bilibili / Tieba / NGA)
+- **LLM extracts, the code scores** — transparent six-dimension rubric (0–100), replayable and tunable
+- **Claim-level verification** — every extracted claim must appear verbatim in the source text, or it is dropped
+- **Two-track pricing** — overseas RRP matched to GW product codes (1,530 verified matches), plus CN official, trade and Xianyu prices
+- **387 tests**, including a golden-corpus regression snapshot (same input → same clusters/scores)
+- **Operational by design** — launch-time state reconciliation, alert log, `doctor` self-check, weekly and daily scheduled tasks
+
+> 中文说明见下方；设计文档在 [`docs/`](docs/)，最近一次全服务核查见
+> [`docs/22-全服务核查与调整报告-2026-11-19.md`](docs/22-全服务核查与调整报告-2026-11-19.md)。
 
 ---
+
 
 ## 快速开始
 
@@ -50,8 +76,8 @@ Copy-Item .env.example .env
 | `run.py price` | 价格摘要 |
 | `run.py price --import-excel 调价表.xlsx` | 导入 GW 官方调价表 |
 | `run.py price --import-csv data/price_snapshots.csv` | 导入人工快照（淘宝/闲鱼观测） |
-| `run.py price --fetch-overseas` | 抓海外价（Element Games） |
-| `run.py price --purge-mismatched` | 清理历史错配的海外价 |
+| `run.py price --fetch-overseas` | [已废弃] 逐商品搜海外价，改用 `scripts/match_catalog.py` 的目录流水线 |
+| `run.py price --purge-mismatched` | 清理历史上因宽松匹配写入的错配海外价 |
 
 ## 无密钥也能用
 
@@ -65,35 +91,54 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**139 个用例**，覆盖：文本清洗、价格提取与换算、聚类与层级升级、多源独立性判定、
+**387 个用例**，覆盖：文本清洗、价格提取与换算、聚类与层级升级、多源独立性判定、
 评分边界、破平规则、槽位补位阶梯、多样性约束、推送文本与 HTML 排版、推送标题契约、URL 转义、
 摘要预算、story_id 稳定性、评分回放、台账 status 保护与幂等、claim 证据校验与跨文档交叉印证、
 矛盾检测、中文社区卡、feed 有效性、反馈去重、预期价模型、以及连续多日运行的去重与补位。
+
+其中两组是「规则化」的回归基线：
+
+- `tests/golden_corpus.py` + `tests/golden/snapshot.json`：人工标注的金标准语料，
+  断言「同输入必同输出」「打乱顺序结果不变」「只共享泛化实体的文档绝不合并」；
+- `tests/test_push_state_machine.py`：推送台账 0/1/2 三态与崩溃恢复的终态收敛。
 
 ## 目录结构
 
 ```
 config/
   config.yaml        运行配置（权重、阈值、窗口、通道）
-  sources.yaml       源注册表（41 个源，含层级与接入方式）
+  sources.yaml       源注册表（46 个源，含层级与接入方式）
 src/infotwitter/
-  adapters/          采集适配器：rss / googlenews / browser / bilibili
-  pipeline.py        聚类 + 评分卡 + 槽位分配
+  adapters/          7 类采集适配器：rss / googlenews / browser / bilibili / tieba / nga / reddit
+  pipeline.py        聚类（约束式合并）+ 评分卡 + 槽位分配
   llm.py             DeepSeek 特征抽取（可降级为规则模式）+ claim 证据校验
   rules.py           规则引擎（无 LLM 时的降级抽取）
-  content.py         正文抓取（Playwright + trafilatura）
-  pricing.py         价格模型与导入
+  content.py         正文抓取（HTTP 优先 + Playwright 兜底 + trafilatura 抽取）
+  pricing/           价格模块：商品目录 / 翻译 / 海外目录抓取 / 货号匹配 / 周更新品
   render.py          推送文本 + HTML 日报 + 推送标题
   notify.py          推送通道（PushPlus / 企业微信）
-  server.py          日报静态服务 + 反馈接口
+  server.py          日报静态服务（含 /healthz 与反馈接口）
   tokens.py          反馈接口的按天令牌
-  runner.py          端到端编排
+  runner.py          端到端编排（含启动状态收敛与失败告警）
   cli.py             命令行入口
-data/                SQLite 数据库
+  doctor.py          环境自检（配置/代理/密钥/日报页/推送状态/定时任务）
+scripts/             长期运维脚本：翻译、目录抓取、补货号、匹配、周更编排、GitHub 推送
+docs/                需求、设计、历次核查与整改报告、核查清单（xlsx）
+data/                SQLite 数据库与登录态（不入库）
 reports/             每日 HTML 日报（`_dryrun/` 里是 dry-run 产物）
 logs/                运行日志 + alert.log（推送失败告警）
-backup/              改动前的代码备份
 ```
+
+## 自动化
+
+| 任务 | 时间 | 作用 |
+|---|---|---|
+| `InfoTwitter-Daily` | 每天 12:00 | 采集 → 分析 → 评分 → 推送 → 发布日报页 |
+| `InfoTwitter-Price-Weekly` | 每周一 09:00 | 抓海外目录 → 补货号 → 新品入库 → 翻译 → 匹配写价 |
+
+两个任务互相独立：价格链路跑挂不影响日更。注册方式见
+[`scripts/install_task.ps1`](scripts/install_task.ps1) 与
+[`scripts/install_weekly_task.ps1`](scripts/install_weekly_task.ps1)。
 
 ## 关键设计
 
@@ -106,7 +151,7 @@ backup/              改动前的代码备份
 **多源印证按发布域名算。** 同一个内容被多个采集配置重复收录不算独立来源，
 否则"多源印证升级"会变成自己印证自己。
 
-**评分卡 v1**（满分 100）：
+**评分卡 importance@v2**（满分 100）：
 
 | 维度 | 权重 |
 |---|---|
@@ -140,9 +185,10 @@ backup/              改动前的代码备份
   而公共实例被 Cloudflare 拦截（403），需自建实例。槽 6 因此仍偏向 B 站内容。
 - **中文战锤新闻本身稀疏**：实测最新一条可能在 5 天前，所以中文源采集窗口放宽到 168h，
   槽 6 单独用 7 天窗口，并标注「N 天前」；通识槽仍严格要求新近发布。
-- **价格数据稀疏**：国内官店价来自 GW 中国调价表（1745 个商品），海外价目前只有
-  个别商品有观测。槽 5 因此多数行只有国内官店价，**没有价格变动的日子不会硬凑**。
-- **闲鱼/淘宝**：`price --login` / `--fetch-cn` 已实现，但依赖登录态、尚未跑通，
-  库内对应渠道为 0 条。合规优先，不考虑自研签名逆向。
+- **价格数据**：国内官店价来自 GW 中国调价表（1745 个商品）；海外价通过目录抓取 + 货号匹配
+  覆盖 900+ 个商品（可校验样本 100% 货号一致）。**涂料类**因国内是 6 支装、海外是单支，
+  单位口径不同，暂不比价；**圣典**因版本不同（中文版 vs 英文版）也不比价。
+- **闲鱼/淘宝**：`price --login` / `--fetch-cn` 已实现，闲鱼可抓（量少），淘宝依赖登录态、
+  尚未跑通。合规优先，不考虑自研签名逆向。
 - **日报页默认局域网可访问**：`app.report_host` 改成 `127.0.0.1` 可只给本机看。
   反馈接口用按天令牌 + 每日去重挡住刷权重，但没有真正的账号体系。
