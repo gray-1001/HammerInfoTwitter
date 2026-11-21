@@ -1,4 +1,4 @@
-﻿"""端到端编排：采集 → 分析 → 聚类 → 评分 → 选槽 → 排版 → 推送 → 台账。"""
+"""端到端编排：采集 → 分析 → 聚类 → 评分 → 选槽 → 排版 → 推送 → 台账。"""
 from __future__ import annotations
 
 import json
@@ -162,9 +162,13 @@ def run_daily(
             if fetch_stats:
                 stats["content_fetch"] = fetch_stats
                 requested = int(fetch_stats.get("requested") or 0)
-                failed = int(fetch_stats.get("failed") or 0)
-                if requested >= 10 and failed / requested >= 0.5:
-                    msg = (f"正文抓取失败率过高：{failed}/{requested} 失败"
+                # 变量名不能叫 failed：外层 failed 是「失败源列表」，会被 build_report 使用。
+                # 之前这里写成 failed = int(...)，把它覆盖成整数，
+                # 导致 11-21 12:00 那次在 build_report 里抛 TypeError: 'int' object is not iterable，
+                # 整轮在推送前崩掉。
+                fetch_failed = int(fetch_stats.get("failed") or 0)
+                if requested >= 10 and fetch_failed / requested >= 0.5:
+                    msg = (f"正文抓取失败率过高：{fetch_failed}/{requested} 失败"
                            f"（缓存命中 {fetch_stats.get('cached', 0)}）")
                     log.warning(msg)
                     _write_alert(cfg, today, msg)

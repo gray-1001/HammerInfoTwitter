@@ -1,8 +1,9 @@
-﻿"""排版：微信推送文本（受 2048 字节限制）与 HTML 日报页。"""
+"""排版：微信推送文本（受 2048 字节限制）与 HTML 日报页。"""
 from __future__ import annotations
 
 import html as html_mod
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .db import CST
 from .tokens import feedback_token
+
+log = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 CIRCLED = "①②③④⑤⑥⑦⑧⑨"
@@ -471,6 +474,12 @@ def build_report(
     out_dir.mkdir(parents=True, exist_ok=True)
     tpl = _env.get_template("report.html.j2")
     names = source_names or {}
+    # 防御：这个参数是「失败源 id 列表」。曾经上游把它覆盖成整数，
+    # 结果整轮在推送前崩掉（11-21 12:00）。渲染不该因为一个展示字段炸掉整条推送。
+    if not isinstance(failed_sources, (list, tuple, set)):
+        log.warning("failed_sources 类型异常（%s），按空处理",
+                    type(failed_sources).__name__)
+        failed_sources = []
 
     def enrich(item: dict[str, Any]) -> dict[str, Any]:
         item = dict(item)
